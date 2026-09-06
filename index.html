@@ -83,6 +83,9 @@
   }
   .toast.show{opacity:1;}
   .admin-badge{background:var(--danger); color:#fff; font-size:10px; padding:2px 6px; border-radius:6px; margin-left:6px;}
+  .security-note{display:flex; gap:9px; align-items:flex-start; color:var(--muted); font-size:12px; line-height:1.45;}
+  .security-note strong{color:var(--text);}
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible{outline:3px solid rgba(58,160,255,.45); outline-offset:2px;}
   footer{text-align:center; color:var(--muted); font-size:11.5px; padding:24px 16px;}
 </style>
 </head>
@@ -146,6 +149,7 @@
         <button class="action primary" onclick="submitDeposit()" data-i18n="submit_deposit">Submit for Review</button>
       </div>
       <p class="muted" style="margin-top:10px;" data-i18n="deposit_note">Points are credited only after admin approval — never automatically on upload.</p>
+      <p class="security-note"><span aria-hidden="true">🔒</span><span><strong data-i18n="privacy_title">Keep your information private.</strong> <span data-i18n="privacy_note">Use a transaction reference only; never share PINs, passwords, or one-time codes.</span></span></p>
     </div>
   </section>
 
@@ -286,7 +290,10 @@ const i18n = {
     pending_payments:"Pending Payments", revenue_etb:"Revenue (ETB)", pending_review:"Pending Deposit Review",
     broadcast:"Broadcast Announcement", send:"Send", fayda_status_control:"Fayda System Status (admin control)",
     footer_note:"Demo UI only — no real payments, Telegram connection, or ID processing occurs here.",
-    approve:"Approve", reject:"Reject"
+    approve:"Approve", reject:"Reject", privacy_title:"Keep your information private.",
+    privacy_note:"Use a transaction reference only; never share PINs, passwords, or one-time codes.",
+    no_transactions:"No transactions yet.", no_pending:"No pending deposits.",
+    status_limited_msg:"Some services may take longer than usual.", status_offline_msg:"The service is temporarily unavailable while maintenance is in progress."
   },
   am: {
     botname:"የነጥብ እና የቦርሳ ቦት", tab_wallet:"💳 ቦርሳ", tab_points:"📊 ነጥቦች", tab_referral:"🎁 ጋብዝ",
@@ -307,7 +314,10 @@ const i18n = {
     pending_payments:"በመጠባበቅ ላይ ያሉ ክፍያዎች", revenue_etb:"ገቢ (ብር)", pending_review:"በመጠባበቅ ላይ ያለ ግምገማ",
     broadcast:"ማስታወቂያ ላክ", send:"ላክ", fayda_status_control:"የፋይዳ ስርዓት ሁኔታ (የአስተዳዳሪ ቁጥጥር)",
     footer_note:"ይህ ለማሳያ ብቻ ነው — ትክክለኛ ክፍያ፣ የቴሌግራም ግንኙነት ወይም የመታወቂያ ሂደት አይከናወንም።",
-    approve:"አጽድቅ", reject:"አትቀበል"
+    approve:"አጽድቅ", reject:"አትቀበል", privacy_title:"መረጃዎን ይጠብቁ።",
+    privacy_note:"የግብይት ማጣቀሻ ብቻ ይጠቀሙ፤ PIN፣ የይለፍ ቃል ወይም የአንድ ጊዜ ኮድ ፈጽሞ አያጋሩ።",
+    no_transactions:"እስካሁን ምንም ግብይት የለም።", no_pending:"በመጠባበቅ ላይ ያለ ገቢ የለም።",
+    status_limited_msg:"አንዳንድ አገልግሎቶች ከተለመደው በላይ ሊዘገዩ ይችላሉ።", status_offline_msg:"ጥገና በሚካሄድበት ጊዜ አገልግሎቱ ለጊዜው አይገኝም።"
   },
   om: {
     botname:"Bot Qabsiisa & Boorsaa", tab_wallet:"💳 Boorsaa", tab_points:"📊 Qabxii", tab_referral:"🎁 Afeeri",
@@ -328,7 +338,10 @@ const i18n = {
     pending_payments:"Kaffaltii Eegamaa Jiru", revenue_etb:"Galii (Birrii)", pending_review:"Ilaalcha Eegamaa",
     broadcast:"Beeksisa Erguu", send:"Ergi", fayda_status_control:"Haala Sirna Faaydaa (to'annoo bulchaa)",
     footer_note:"Kun agarsiisa demo qofa — kaffaltiin dhugaa, walqunnamtiin Telegram, ykn adeemsi ID hin jiru.",
-    approve:"Mirkaneessi", reject:"Didi"
+    approve:"Mirkaneessi", reject:"Didi", privacy_title:"Odeeffannoo kee eegi.",
+    privacy_note:"Wabii daldalaa qofa fayyadami; PIN, jecha iccitii, ykn koodii yeroo tokkoo hin qoodin.",
+    no_transactions:"Daldalli tokko illee hin jiru.", no_pending:"Galchi eeggamaa jiru hin jiru.",
+    status_limited_msg:"Tajaajiloonni tokko tokko yeroo dheeraa fudhachuu malu.", status_offline_msg:"Yeroo suphaan gaggeeffamaa jirutti tajaajilichi yeroo muraasaaf hin argamu."
   }
 };
 let lang = localStorage.getItem('botDemoLang') || 'en';
@@ -367,14 +380,19 @@ function toast(msg){
 // ---------- Wallet ----------
 function renderWallet(){
   document.getElementById('ptsBalance').textContent = state.points;
-  document.getElementById('etbBalance').textContent = state.points*15;
+  document.getElementById('etbBalance').textContent = formatAmount(state.points * 15);
   const recent = state.tx.slice(-3).reverse();
-  document.getElementById('recentTxList').innerHTML = recent.map(txRow).join('') || `<p class="muted">No transactions yet.</p>`;
-  document.getElementById('fullTxList').innerHTML = state.tx.slice().reverse().map(txRow).join('') || `<p class="muted">No transactions yet.</p>`;
+  document.getElementById('recentTxList').innerHTML = recent.map(txRow).join('') || emptyState('no_transactions');
+  document.getElementById('fullTxList').innerHTML = state.tx.slice().reverse().map(txRow).join('') || emptyState('no_transactions');
 }
+function escapeHtml(value){
+  return String(value).replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[character]));
+}
+function formatAmount(amount){ return new Intl.NumberFormat(lang === 'am' ? 'am-ET' : lang === 'om' ? 'om-ET' : 'en-ET').format(amount); }
+function emptyState(key){ return `<p class="muted">${escapeHtml(i18n[lang][key])}</p>`; }
 function txRow(t){
-  return `<div class="row"><span>${t.amount} ETB · ${t.method}<br><span class="muted">${t.ref} · ${t.date}</span></span>
-    <span class="pill ${t.status}">${t.status}</span></div>`;
+  return `<div class="row"><span>${formatAmount(t.amount)} ETB · ${escapeHtml(t.method)}<br><span class="muted">${escapeHtml(t.ref)} · ${escapeHtml(t.date)}</span></span>
+    <span class="pill ${escapeHtml(t.status)}">${escapeHtml(t.status)}</span></div>`;
 }
 function submitDeposit(){
   const amount = parseFloat(document.getElementById('depAmount').value);
@@ -410,14 +428,15 @@ function copyRef(){
 // ---------- Status ----------
 const statusMap = {
   operational: {pill:'🟢 Operational', cls:'approved', msgKey:'status_ok_msg'},
-  limited: {pill:'🟡 Limited', cls:'pending', msgKey:'status_ok_msg'},
-  offline: {pill:'🔴 Offline / Maintenance', cls:'rejected', msgKey:'status_ok_msg'}
+  limited: {pill:'🟡 Limited', cls:'pending', msgKey:'status_limited_msg'},
+  offline: {pill:'🔴 Offline / Maintenance', cls:'rejected', msgKey:'status_offline_msg'}
 };
 function renderStatus(){
   const s = statusMap[state.status];
   const pillEl = document.getElementById('statusPill');
   pillEl.textContent = s.pill;
   pillEl.className = 'pill ' + s.cls;
+  document.getElementById('statusMsg').textContent = i18n[lang][s.msgKey];
   document.getElementById('statusSelect').value = state.status;
 }
 function setStatus(v){
@@ -429,15 +448,15 @@ function setStatus(v){
 function renderAdmin(){
   const pending = state.tx.filter(t=>t.status==='pending');
   document.getElementById('adminPending').textContent = pending.length;
-  document.getElementById('adminRevenue').textContent = state.tx.filter(t=>t.status==='approved').reduce((s,t)=>s+t.amount,0);
+  document.getElementById('adminRevenue').textContent = formatAmount(state.tx.filter(t=>t.status==='approved').reduce((s,t)=>s+t.amount,0));
   document.getElementById('adminPendingList').innerHTML = pending.map(t=>`
     <div class="row">
-      <span>${t.amount} ETB · ${t.method}<br><span class="muted">${t.ref} · ${t.date}</span></span>
+      <span>${formatAmount(t.amount)} ETB · ${escapeHtml(t.method)}<br><span class="muted">${escapeHtml(t.ref)} · ${escapeHtml(t.date)}</span></span>
       <span>
         <button class="copybtn" style="background:var(--accent2); color:#08240f;" onclick="reviewTx(${t.id},'approved')">${i18n[lang].approve}</button>
         <button class="copybtn" style="background:var(--danger); color:#2a0505; margin-left:4px;" onclick="reviewTx(${t.id},'rejected')">${i18n[lang].reject}</button>
       </span>
-    </div>`).join('') || `<p class="muted">No pending deposits.</p>`;
+    </div>`).join('') || emptyState('no_pending');
 }
 function reviewTx(id, decision){
   const t = state.tx.find(x=>x.id===id);
